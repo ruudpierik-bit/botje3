@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elektramat Chat</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap');
+        
+        /* Namespace all chatbot styles to prevent Magento conflicts */
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Open Sans','Segoe UI',Arial,sans-serif;font-size:16px;line-height:26px;color:#424140}
+        #chat-toggle{position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#196CAE,#34BBDA);border:none;cursor:pointer;box-shadow:0 4px 12px rgba(25,108,174,.3);z-index:1000;display:flex;align-items:center;justify-content:center;transition:transform .3s}
+        #chat-toggle:hover{transform:scale(1.1)}
+        #chat-toggle svg{width:30px;height:30px;fill:white}
+        #chat-toggle.has-new-message{animation:pulse-badge 2s infinite}
+        @keyframes pulse-badge{0%,100%{box-shadow:0 4px 12px rgba(25,108,174,.3)}50%{box-shadow:0 4px 20px rgba(255,59,48,.8)}}
+        #chat-badge{position:absolute;top:-5px;right:-5px;width:22px;height:22px;background:#FF3B30;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;border:2px solid white;animation:bounce-in .3s}
+        @keyframes bounce-in{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+        #pending-indicator{display:none;background:#fff3e0;color:#e65100;padding:8px 16px;font-size:12px;text-align:center;border-bottom:1px solid #ffe0b2}
+        #chat-container{position:fixed;bottom:90px;right:20px;width:420px;height:650px;min-width:320px;min-height:400px;max-width:90vw;max-height:calc(100vh - 120px);background:white;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.15);display:none;flex-direction:column;overflow:hidden;z-index:999;transition:all .3s ease}
+        #chat-container.active{display:flex;bottom:20px;height:720px;max-height:calc(100vh - 40px)}
+        #chat-container.fullscreen{width:100vw!important;height:100vh!important;top:0!important;left:0!important;right:0!important;bottom:0!important;border-radius:0;max-height:100vh}
+        .resize-handle{position:absolute;bottom:0;left:0;width:20px;height:20px;cursor:nwse-resize;z-index:10}
+        .resize-handle::after{content:'';position:absolute;bottom:2px;left:2px;width:12px;height:12px;background:linear-gradient(-135deg,transparent 50%,#999 50%);border-bottom-left-radius:16px}
+        #chat-container.fullscreen .resize-handle{display:none}
+        #chat-header{background:linear-gradient(135deg,#196CAE,#34BBDA);color:white;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:relative}
+        #chat-header::after{content:'';position:absolute;bottom:-10px;right:20px;width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-top:10px solid #34BBDA}
+        .header-content{display:flex;align-items:center;gap:0;flex:1}
+        .header-title{font-size:18px!important;font-weight:700!important;margin:0!important;letter-spacing:0.3px!important;color:white!important;text-shadow:0 1px 3px rgba(0,0,0,0.3)!important}
+        .header-actions{display:flex;gap:8px;align-items:center}
+        .header-btn{background:rgba(255,255,255,.2)!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:8px!important;border-radius:6px!important;transition:background .2s!important;width:36px!important;height:36px!important;display:flex!important;align-items:center!important;justify-content:center!important}
+        .header-btn:hover{background:rgba(255,255,255,.3)!important}
+        .header-btn:active{background:rgba(255,255,255,.4)!important}
+        #hamburger-menu{position:absolute;top:56px;right:10px;background:white;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.2);padding:0;min-width:220px;display:none;z-index:1001}
+        #hamburger-menu.active{display:block}
+        .menu-section{padding:0}
+        .menu-section-title{font-size:11px;font-weight:600;color:#666;padding:12px 16px 8px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e0e0e0}
+        .menu-item{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;transition:background .2s;color:#424140;font-size:14px;border:none;background:none;width:100%;text-align:left}
+        .menu-item:hover{background:#f5f5f5}
+        .menu-item.active{background:#E9F8FB;color:#196CAE;font-weight:600}
+        .menu-item .icon{font-size:16px;width:20px;text-align:center}
+        .menu-divider{height:1px;background:#e0e0e0;margin:0}
+        #chat-messages{flex:1;overflow-y:auto;padding:20px;background:#E9F8FB;display:flex;flex-direction:column;gap:12px}
+        .message{max-width:80%!important;padding:12px 16px!important;border-radius:12px!important;word-wrap:break-word!important;animation:slideIn .3s!important;font-family:'Open Sans','Segoe UI',Arial,sans-serif!important;box-sizing:border-box!important}
+        @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .message.user{background:#34BBDA!important;color:white!important;align-self:flex-end!important;border-bottom-right-radius:4px!important}
+        .message.bot{background:white!important;color:#424140!important;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 2px 4px rgba(0,0,0,.05);white-space:pre-wrap!important;font-family:'Open Sans','Segoe UI',Arial,sans-serif!important;line-height:1.8!important;padding:12px 16px!important;display:block!important;word-wrap:break-word!important;overflow-wrap:break-word!important}
+        .message.bot *{font-family:'Open Sans','Segoe UI',Arial,sans-serif!important;line-height:1.8!important}
+        .message.bot strong{font-weight:700!important;color:#196CAE!important;display:inline!important}
+        .message.bot em{font-style:italic!important;display:inline!important}
+        .message.bot a{color:#196CAE!important;text-decoration:underline!important;font-weight:600!important;display:inline!important}
+        .message.bot a:hover{color:#34BBDA!important}
+        .message.bot br{display:block!important;content:""!important;margin:0.5em 0!important}
+        #chat-container.font-small .message{font-size:10px}
+        #chat-container.font-medium .message{font-size:12px}
+        #chat-container.font-large .message{font-size:14px}
+        #chat-container.font-small #chat-input{font-size:10px}
+        #chat-container.font-medium #chat-input{font-size:12px}
+        #chat-container.font-large #chat-input{font-size:14px}
+        .typing-indicator{display:none;align-self:flex-start;padding:12px 16px;background:white;border-radius:12px;border-bottom-left-radius:4px}
+        .typing-indicator.active{display:block}
+        .typing-dots{display:flex;gap:4px}
+        .typing-dots span{width:8px;height:8px;background:#196CAE;border-radius:50%;animation:typing 1.4s infinite}
+        .typing-dots span:nth-child(2){animation-delay:.2s}
+        .typing-dots span:nth-child(3){animation-delay:.4s}
+        @keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.7}30%{transform:translateY(-10px);opacity:1}}
+        #email-form{display:none;padding:20px;background:white;border-top:1px solid #e0e0e0}
+        #email-form.active{display:block}
+        #email-form label{display:block;margin-bottom:8px;font-weight:600;color:#196CAE}
+        #email-form input{width:100%;padding:12px;border:2px solid #34BBDA;border-radius:8px;font-size:16px;margin-bottom:12px}
+        #email-form button{width:100%;padding:12px;background:#70CC0A;color:white;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer}
+        #chat-input-area{padding:16px 20px;background:white;border-top:1px solid #e0e0e0;display:none;position:relative}
+        #chat-input-area.active{display:block}
+        .input-wrapper{position:relative;display:flex;align-items:stretch}
+        #file-upload-btn{position:absolute!important;left:12px!important;bottom:12px!important;background:transparent!important;border:none!important;color:#196CAE!important;padding:8px!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;z-index:5!important;transition:color .2s!important}
+        #file-upload-btn:hover{color:#34BBDA!important}
+        #file-upload-btn svg{width:20px!important;height:20px!important;fill:currentColor!important}
+        #chat-input{width:100%;padding:14px 50px 14px 45px;border:2px solid #34BBDA;border-radius:8px;font-size:14px;font-family:'Open Sans','Segoe UI',Arial,sans-serif;max-height:200px;min-height:80px;line-height:1.5;resize:none;overflow-y:auto}
+        .input-resize-handle{position:absolute;bottom:16px;left:20px;width:16px;height:16px;cursor:ns-resize;z-index:10}
+        .input-resize-handle::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px;background:#34BBDA;border-radius:2px}
+        #send-btn{position:absolute!important;right:12px!important;bottom:12px!important;background:#70CC0A!important;color:white!important;border:none!important;padding:8px 16px!important;border-radius:6px!important;cursor:pointer!important;font-weight:600!important;font-size:14px!important;z-index:5!important;transition:background .2s!important}
+        #send-btn:hover{background:#5db008!important}
+        #send-btn:disabled{opacity:.5!important;cursor:not-allowed!important}
+        #chat-footer{padding:12px 20px;background:#f8f8f8;text-align:center;font-size:12px;color:#424140;border-top:1px solid #e0e0e0}
+        #chat-footer strong{color:#196CAE}
+        .error-message{background:#ffebee;color:#c62828;padding:12px;border-radius:8px;margin:10px 20px;font-size:14px;display:none}
+        .error-message.active{display:block}
+        #debug-panel{position:fixed;bottom:10px;left:10px;background:rgba(0,0,0,.9);color:white;padding:15px;border-radius:8px;font-size:11px;max-width:350px;display:none;z-index:1001;max-height:400px;overflow-y:auto}
+        #debug-toggle{position:fixed;bottom:10px;left:10px;background:#424140;color:white;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:11px;z-index:1002}
+        #file-input{display:none}
+        @media (max-width:480px){
+            #chat-container{width:100%!important;height:100%!important;bottom:0!important;right:0!important;border-radius:0;max-height:100vh!important}
+        }
+        
+        /* Extra hoge z-index voor Magento compatibility */
+        #chat-toggle{z-index:9999}
+        #chat-container{z-index:9998}
+        #hamburger-menu{z-index:9999}
+        #debug-panel{z-index:9997}
+        #debug-toggle{z-index:9997}
+    </style>
+</head>
+<body>
+    <button id="debug-toggle" style="display:none;">Debug</button>
+    <div id="debug-panel" style="display:none;">
+        <strong>Debug Info:</strong><br>
+        Chat ID: <span id="debug-chatid">-</span><br>
+        Email: <span id="debug-email">-</span><br>
+        <strong>Ingelogd: <span id="debug-loggedin" style="color:#70CC0A">-</span></strong><br>
+        Cart ID: <span id="debug-cartid">-</span><br>
+        <strong>Opgeslagen: <span id="debug-saved" style="color:#70CC0A">-</span></strong><br>
+        <strong>Pagina: <span id="debug-pagetype" style="color:#34BBDA">-</span></strong><br>
+        <strong>Webhook: <span id="debug-webhook" style="color:#70CC0A">productie</span></strong><br>
+        <button onclick="refreshCartId()" style="width:100%;margin-top:8px;padding:6px;background:#34BBDA;border:none;color:white;cursor:pointer;border-radius:4px;font-size:11px">🔄 Refresh Data</button>
+        <hr style="margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,.2)">
+        <strong>Override:</strong><br>
+        <input type="text" id="debug-cart-override" placeholder="Magento Cart ID" style="width:100%;margin-top:8px;padding:4px;font-size:11px">
+        <button onclick="overrideCartId()" style="width:100%;margin-top:4px;padding:4px;background:#70CC0A;border:none;color:white;cursor:pointer;border-radius:4px;font-size:11px">Set Cart ID</button>
+        <hr style="margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,.2)">
+        <strong>Webhook URL:</strong><br>
+        <input type="text" id="debug-webhook-override" placeholder="Test webhook URL" style="width:100%;margin-top:8px;padding:4px;font-size:11px">
+        <button onclick="overrideWebhookUrl()" style="width:100%;margin-top:4px;padding:4px;background:#ff9800;border:none;color:white;cursor:pointer;border-radius:4px;font-size:11px">Set Webhook URL</button>
+        <button onclick="clearWebhookOverride()" style="width:100%;margin-top:4px;padding:4px;background:#f44336;border:none;color:white;cursor:pointer;border-radius:4px;font-size:11px">Reset naar Productie</button>
+        <hr style="margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,.2)">
+        <strong>Last Request:</strong><br>
+        <div id="debug-last-request" style="background:rgba(255,255,255,.1);padding:8px;border-radius:4px;margin-top:8px;font-size:10px;max-height:150px;overflow-y:auto">Geen requests</div>
+    </div>
+
+    <button id="chat-toggle" aria-label="Open chat">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        <span id="chat-badge">!</span>
+    </button>
+
+    <div id="chat-container" class="font-medium">
+        <div id="test-mode-banner" style="display:none;background:#ff9800;color:white;padding:8px 16px;font-size:12px;font-weight:600;text-align:center;">
+            ⚠️ TEST MODE - Verbonden met test webhook
+        </div>
+        <div id="pending-indicator">
+            ⏳ Wachten op antwoord... Je kunt veilig navigeren, het antwoord wordt bewaard.
+        </div>
+        <div id="chat-header">
+            <div class="header-content">
+                <h3 class="header-title">Botje</h3>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" id="menu-btn" title="Menu">☰</button>
+                <button class="header-btn" id="fullscreen-btn" title="Volledig scherm">⛶</button>
+                <button class="header-btn" id="close-chat" title="Sluiten">×</button>
+            </div>
+        </div>
+
+        <div id="hamburger-menu">
+            <div class="menu-section">
+                <div class="menu-section-title">Lettergrootte</div>
+                <button class="menu-item" id="menu-font-small">
+                    <span class="icon">A-</span>
+                    <span>Klein (10px)</span>
+                </button>
+                <button class="menu-item active" id="menu-font-medium">
+                    <span class="icon">A</span>
+                    <span>Normaal (12px)</span>
+                </button>
+                <button class="menu-item" id="menu-font-large">
+                    <span class="icon">A+</span>
+                    <span>Groot (14px)</span>
+                </button>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-section">
+                <button class="menu-item" id="menu-reload-cart">
+                    <span class="icon">🛒</span>
+                    <span>Winkelwagen herladen</span>
+                </button>
+                <button class="menu-item" id="menu-new-chat">
+                    <span class="icon">↻</span>
+                    <span>Nieuwe chat starten</span>
+                </button>
+                <button class="menu-item" id="menu-clear-chat">
+                    <span class="icon">🗑️</span>
+                    <span>Chat wissen</span>
+                </button>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-section">
+                <div class="menu-section-title">Info</div>
+                <div class="menu-item" style="cursor:default;flex-direction:column;align-items:flex-start;gap:4px;">
+                    <span style="font-weight:600;color:#196CAE;" id="menu-version">Botje</span>
+                    <span style="font-size:11px;color:#666;">Elektramat Chat Assistant</span>
+                    <span style="font-size:10px;color:#999;" id="menu-connection-status">Verbonden met productie</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="chat-messages">
+            <div class="message bot">Hallo! Welkom bij Elektramat. Hoe kan ik je helpen?</div>
+        </div>
+
+        <div class="error-message" id="error-message"></div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+
+        <div id="email-form" class="active">
+            <label for="user-email">Wat is je e-mailadres?</label>
+            <input type="email" id="user-email" placeholder="jouw@email.nl" required>
+            <button id="email-submit">Start Chat</button>
+        </div>
+
+        <div id="chat-input-area">
+            <div class="input-wrapper">
+                <label for="file-input" id="file-upload-btn" title="Bestand uploaden">
+                    <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+                </label>
+                <input type="file" id="file-input" accept="image/*,.pdf,.doc,.docx,.txt">
+                <textarea id="chat-input" placeholder="Typ je bericht..."></textarea>
+                <button id="send-btn">Stuur</button>
+            </div>
+            <div class="input-resize-handle" id="input-resize-handle"></div>
+        </div>
+
+        <div id="chat-footer"><strong>ELEKTRAMAT</strong> Meer dan Elektra!</div>
+        <div class="resize-handle" id="chat-resize-handle"></div>
+    </div>
+
+    <script>
+        const WEBHOOK_URL_PRODUCTION = 'https://elektramat.app.n8n.cloud/webhook/ab977eda-36b8-46f7-a377-e90418ff166d';
+        const BOTJE_VERSION = '2.7.8';
+        const MAX_FILE_SIZE = 10 * 1024 * 1024;
+        const REQUEST_TIMEOUT = 120000; // 2 minuten timeout (voor SW)
+        const SW_PATH = '/botje-sw.js'; // Pad naar Service Worker
+        
+        let chatId, userEmail, magentoCartId = '', customerLoggedIn = false;
+        let debugCartIdOverride = null, currentFile = null;
+        let webhookUrlOverride = null;
+        let retryCount = 0;
+        let serviceWorkerReady = false;
+        let pendingRequestId = null;
+        const MAX_RETRIES = 2;
+        
+        // Get the active webhook URL (override or production)
+        function getActiveWebhookUrl() {
+            return webhookUrlOverride || WEBHOOK_URL_PRODUCTION;
+        }
+        
+        // Check if we're in test mode
+        function isTestMode() {
+            return webhookUrlOverride !== null && webhookUrlOverride !== '';
+        }
+        
+        // Genereer uniek request ID
+        function generateRequestId() {
+            return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Chatbot geladen - versie ' + BOTJE_VERSION + ' (Met Service Worker Background Requests)');
+            
+            // Check voor debug mode via URL parameter (?debug=true of ?debug=1)
+            initDebugMode();
+            
+            // Initialiseer Service Worker
+            initServiceWorker();
+            
+            // Restore webhook override from localStorage
+            const savedWebhookOverride = localStorage.getItem('elektramat_webhook_override');
+            if (savedWebhookOverride) {
+                webhookUrlOverride = savedWebhookOverride;
+                console.log('🔧 Webhook override hersteld:', webhookUrlOverride);
+            }
+            
+            // Try to restore previous chat
+            const savedChat = restoreChat();
+            
+            if (!savedChat) {
+                // New chat
+                chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+            
+            // Initial load - immediate check
+            loadCustomerData();
+            
+            // Delayed check (Magento customer data might load after DOM)
+            setTimeout(function() {
+                console.log('🔄 Delayed customer data check...');
+                loadCustomerData();
+                updateDebugPanel();
+            }, 1000);
+            
+            updateDebugPanel();
+            updateTestModeBanner();
+            restoreBadgeStatus();
+            attachEvents();
+            addResizeHandlers();
+        });
+        
+        function initDebugMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const debugParam = urlParams.get('debug');
+            
+            // Activeer debug mode als ?debug=true, ?debug=1, of gewoon ?debug
+            if (debugParam === 'true' || debugParam === '1' || debugParam === '') {
+                console.log('🐛 Debug mode ACTIEF');
+                document.getElementById('debug-toggle').style.display = 'block';
+                
+                // Sla op in sessionStorage zodat debug actief blijft tijdens navigatie
+                sessionStorage.setItem('elektramat_debug_mode', 'true');
+            } else if (sessionStorage.getItem('elektramat_debug_mode') === 'true') {
+                // Debug was eerder geactiveerd in deze sessie
+                console.log('🐛 Debug mode ACTIEF (sessie)');
+                document.getElementById('debug-toggle').style.display = 'block';
+            }
+            
+            // Update versienummer in menu
+            const versionEl = document.getElementById('menu-version');
+            if (versionEl) {
+                versionEl.textContent = 'Botje v' + BOTJE_VERSION;
+            }
+        }
+        
+        // ==================== SERVICE WORKER FUNCTIES ====================
+        
+        async function initServiceWorker() {
+            if (!('serviceWorker' in navigator)) {
+                console.warn('⚠️ Service Workers niet ondersteund in deze browser');
+                return;
+            }
+            
+            try {
+                const registration = await navigator.serviceWorker.register(SW_PATH, {
+                    scope: '/'
+                });
+                
+                console.log('✅ Service Worker geregistreerd:', registration.scope);
+                
+                // Wacht tot SW actief is
+                if (registration.active) {
+                    serviceWorkerReady = true;
+                    console.log('✅ Service Worker is actief');
+                } else {
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'activated') {
+                                serviceWorkerReady = true;
+                                console.log('✅ Service Worker is nu actief');
+                            }
+                        });
+                    });
+                }
+                
+                // Luister naar berichten van Service Worker
+                navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+                
+                // Check voor pending responses bij laden
+                setTimeout(checkPendingResponses, 500);
+                
+            } catch (error) {
+                console.error('❌ Service Worker registratie mislukt:', error);
+                // Fallback: chatbot werkt nog steeds, maar zonder background requests
+            }
+        }
+        
+        function handleServiceWorkerMessage(event) {
+            const { type, requestId, response, error, status, pendingResponse, pendingRequest } = event.data;
+            
+            console.log('📬 Bericht van Service Worker:', type, event.data);
+            
+            if (type === 'CHAT_RESPONSE') {
+                // Response ontvangen terwijl we op de pagina zijn
+                hideTyping();
+                hidePendingIndicator();
+                
+                const container = document.getElementById('chat-container');
+                const chatIsOpen = container && container.classList.contains('active');
+                
+                if (status === 'completed' && response) {
+                    // Toon in debug panel
+                    showDebug('SW Response', { requestId: requestId, received: response });
+                    
+                    // Extract response text
+                    let txt = extractResponseText(response);
+                    if (txt) {
+                        txt = formatBotMessage(txt);
+                        addMessage(txt, 'bot');
+                    } else {
+                        addMessage('Bericht ontvangen!', 'bot');
+                    }
+                    
+                    // Check if webhook wants to reload cart
+                    const shouldReloadCart = response.reloadCart || (response.output && response.output.reloadCart);
+                    if (shouldReloadCart) {
+                        console.log('🛒 Webhook vraagt om cart reload');
+                        setTimeout(function() {
+                            const success = reloadMagentoCart();
+                            if (success) {
+                                addMessage('✅ Winkelwagen is bijgewerkt!', 'bot');
+                            }
+                        }, 1000);
+                    }
+                    
+                    // Als chat gesloten is, toon notificatie
+                    if (!chatIsOpen) {
+                        showNewMessageNotification();
+                    }
+                } else if (status === 'error') {
+                    // Toon error in debug panel
+                    showDebug('SW Error', { requestId: requestId, error: error });
+                    
+                    showError('❌ ' + (error || 'Er ging iets mis'));
+                    addMessage('Sorry, er ging iets mis. Probeer het opnieuw.', 'bot');
+                }
+                
+                // Markeer als gelezen in SW
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                        type: 'MARK_READ',
+                        requestId: requestId
+                    });
+                }
+                
+                pendingRequestId = null;
+                
+                // Badge alleen verbergen als chat OPEN is
+                if (chatIsOpen) {
+                    updateChatBadge(false);
+                }
+                
+                saveChat();
+            }
+            
+            if (type === 'PENDING_STATUS') {
+                handlePendingStatus(pendingResponse, pendingRequest);
+            }
+        }
+        
+        function checkPendingResponses() {
+            if (navigator.serviceWorker.controller) {
+                console.log('🔍 Checking voor pending responses...');
+                navigator.serviceWorker.controller.postMessage({ type: 'CHECK_PENDING' });
+            }
+        }
+        
+        function handlePendingStatus(pendingResponse, pendingRequest) {
+            console.log('📋 Pending status:', { pendingResponse, pendingRequest });
+            
+            // Er is een ongelezen response
+            if (pendingResponse && !pendingResponse.read) {
+                console.log('📬 Ongelezen response gevonden!');
+                
+                hideTyping();
+                hidePendingIndicator();
+                
+                if (pendingResponse.status === 'completed' && pendingResponse.response) {
+                    // Toon in debug panel
+                    showDebug('Restored Response', { requestId: pendingResponse.requestId, received: pendingResponse.response });
+                    
+                    // Toon het bericht
+                    let txt = extractResponseText(pendingResponse.response);
+                    if (txt) {
+                        txt = formatBotMessage(txt);
+                        addMessage(txt, 'bot');
+                    }
+                    
+                    // Toon badge en notificatie - ALTIJD bij nieuw bericht
+                    updateChatBadge(true);
+                    showNewMessageNotification();
+                    
+                    // Sla chat op
+                    saveChat();
+                    
+                } else if (pendingResponse.status === 'error') {
+                    // Toon error in debug panel
+                    showDebug('Restored Error', { requestId: pendingResponse.requestId, error: pendingResponse.error });
+                    
+                    addMessage('Sorry, er ging iets mis met je vorige bericht. Probeer het opnieuw.', 'bot');
+                    saveChat();
+                }
+                
+                // Markeer als gelezen in SW (maar badge blijft tot chat geopend wordt)
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                        type: 'MARK_READ',
+                        requestId: pendingResponse.requestId
+                    });
+                }
+                
+                saveChat();
+            }
+            
+            // Er is nog een request in behandeling
+            if (pendingRequest && pendingRequest.status === 'pending') {
+                const age = Date.now() - pendingRequest.timestamp;
+                const maxAge = REQUEST_TIMEOUT + 10000; // timeout + 10 sec marge
+                
+                if (age < maxAge) {
+                    console.log('⏳ Request nog in behandeling:', Math.round(age / 1000) + 's oud');
+                    showTyping();
+                    showPendingIndicator();
+                } else {
+                    console.log('⏱️ Request is verlopen, wissen...');
+                    clearPendingData();
+                }
+            }
+        }
+        
+        function extractResponseText(data) {
+            let txt = null;
+            if (data.answer) {
+                txt = data.answer;
+            } else if (data.output) {
+                if (typeof data.output === 'object') {
+                    txt = data.output.answer || data.output.output || data.output.message;
+                } else if (typeof data.output === 'string') {
+                    txt = data.output;
+                }
+            } else if (data.message) {
+                txt = data.message;
+            }
+            return txt;
+        }
+        
+        function clearPendingData() {
+            if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_PENDING' });
+            }
+            pendingRequestId = null;
+            updateChatBadge(false);
+        }
+        
+        function showPendingIndicator() {
+            // Toon indicator dat er een request bezig is
+            const indicator = document.getElementById('pending-indicator');
+            if (indicator) {
+                indicator.style.display = 'block';
+            }
+        }
+        
+        function hidePendingIndicator() {
+            const indicator = document.getElementById('pending-indicator');
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+        }
+        
+        function updateChatBadge(show) {
+            const badge = document.getElementById('chat-badge');
+            if (badge) {
+                badge.style.display = show ? 'flex' : 'none';
+            }
+            
+            // Ook de chat toggle button highlighten
+            const toggle = document.getElementById('chat-toggle');
+            if (toggle) {
+                if (show) {
+                    toggle.classList.add('has-new-message');
+                } else {
+                    toggle.classList.remove('has-new-message');
+                }
+            }
+            
+            // Sla badge status op in localStorage
+            try {
+                if (show) {
+                    localStorage.setItem('elektramat_chat_badge', 'true');
+                } else {
+                    localStorage.removeItem('elektramat_chat_badge');
+                }
+            } catch (e) {
+                console.warn('⚠️ Kon badge status niet opslaan');
+            }
+        }
+        
+        function restoreBadgeStatus() {
+            // Herstel badge status bij page load
+            try {
+                const hasBadge = localStorage.getItem('elektramat_chat_badge') === 'true';
+                if (hasBadge) {
+                    console.log('🔔 Badge status hersteld: actief');
+                    updateChatBadge(true);
+                }
+            } catch (e) {
+                console.warn('⚠️ Kon badge status niet herstellen');
+            }
+        }
+        
+        function showNewMessageNotification() {
+            // Toon een subtiele notificatie
+            const container = document.getElementById('chat-container');
+            const toggle = document.getElementById('chat-toggle');
+            
+            // Als chat niet open is, highlight de button
+            if (!container.classList.contains('active')) {
+                // Zorg dat de toggle button zichtbaar is!
+                if (toggle) {
+                    toggle.style.display = 'flex';
+                }
+                
+                updateChatBadge(true);
+                
+                // Optioneel: browser notificatie (als toegestaan)
+                if (Notification.permission === 'granted') {
+                    new Notification('Botje', {
+                        body: 'Je hebt een nieuw bericht!',
+                        icon: '/favicon.ico'
+                    });
+                }
+            }
+        }
+        
+        // ==================== EINDE SERVICE WORKER FUNCTIES ====================
+        
+        function saveChat() {
+            try {
+                const messages = [];
+                const messageElements = document.getElementById('chat-messages').querySelectorAll('.message');
+                
+                messageElements.forEach(function(el) {
+                    messages.push({
+                        text: el.innerHTML, // Use innerHTML to preserve formatting
+                        sender: el.classList.contains('user') ? 'user' : 'bot'
+                    });
+                });
+                
+                const chatData = {
+                    chatId: chatId,
+                    userEmail: userEmail,
+                    messages: messages,
+                    // NOTE: customerLoggedIn and magentoCartId are NOT saved
+                    // These must always be refreshed live from Magento
+                    timestamp: Date.now()
+                };
+                
+                localStorage.setItem('elektramat_chat', JSON.stringify(chatData));
+                
+                // Log email source
+                if (userEmail) {
+                    if (userEmail.endsWith('@cartid.nl')) {
+                        console.log('💾 Chat opgeslagen (email van Cart ID)');
+                    } else {
+                        console.log('💾 Chat opgeslagen (echt email adres)');
+                    }
+                } else {
+                    console.log('💾 Chat opgeslagen (geen email)');
+                }
+            } catch (e) {
+                console.warn('⚠️ Kon chat niet opslaan:', e.message);
+            }
+        }
+        
+        function restoreChat() {
+            try {
+                const saved = localStorage.getItem('elektramat_chat');
+                if (!saved) {
+                    console.log('ℹ️ Geen opgeslagen chat gevonden');
+                    return false;
+                }
+                
+                const chatData = JSON.parse(saved);
+                
+                // Check if chat is not too old (max 24 hours)
+                const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+                if (Date.now() - chatData.timestamp > maxAge) {
+                    console.log('ℹ️ Opgeslagen chat is te oud, wordt verwijderd');
+                    localStorage.removeItem('elektramat_chat');
+                    return false;
+                }
+                
+                console.log('✅ Chat hersteld:', chatData.chatId);
+                
+                // Restore data
+                chatId = chatData.chatId;
+                userEmail = chatData.userEmail;
+                
+                // NOTE: customerLoggedIn and magentoCartId are NOT restored
+                // These will be fetched fresh by loadCustomerData()
+                
+                // Restore messages
+                const messagesContainer = document.getElementById('chat-messages');
+                messagesContainer.innerHTML = '';
+                
+                chatData.messages.forEach(function(msg) {
+                    const div = document.createElement('div');
+                    div.className = 'message ' + msg.sender;
+                    div.innerHTML = msg.text;
+                    messagesContainer.appendChild(div);
+                });
+                
+                // Show chat input if email was already provided
+                // Note: we don't check customerLoggedIn here because it will be checked in loadCustomerData()
+                if (userEmail) {
+                    document.getElementById('email-form').style.display = 'none';
+                    document.getElementById('chat-input-area').classList.add('active');
+                }
+                
+                // Scroll to bottom after restoring messages
+                setTimeout(function() {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }, 100);
+                
+                return true;
+            } catch (e) {
+                console.warn('⚠️ Kon chat niet herstellen:', e.message);
+                localStorage.removeItem('elektramat_chat');
+                return false;
+            }
+        }
+        
+        function clearChat() {
+            try {
+                localStorage.removeItem('elektramat_chat');
+                console.log('🗑️ Chat verwijderd uit opslag');
+            } catch (e) {
+                console.warn('⚠️ Kon chat niet verwijderen:', e.message);
+            }
+        }
+        
+        function loadCustomerData() {
+            // Try to get cart ID from Hyvä (Magento 2 Hyvä theme)
+            magentoCartId = getHyvaCartId() || getCookie('magento_cart_id') || '';
+            customerLoggedIn = isCustomerLoggedIn();
+            
+            console.log('📊 Customer data loaded:');
+            console.log('  🛒 Cart ID:', magentoCartId || '(geen cart)');
+            console.log('  🔐 Ingelogd:', customerLoggedIn ? 'Ja' : 'Nee');
+            
+            // Check if chat is already active
+            const chatIsActive = document.getElementById('chat-input-area').classList.contains('active');
+            const emailFormVisible = document.getElementById('email-form').style.display !== 'none';
+            
+            console.log('  💬 Chat actief:', chatIsActive ? 'Ja' : 'Nee');
+            console.log('  📧 Email form zichtbaar:', emailFormVisible ? 'Ja' : 'Nee');
+            
+            // IMPORTANT: Check if user has Cart ID email but is not logged in anymore
+            if (userEmail && userEmail.endsWith('@cartid.nl') && !customerLoggedIn) {
+                console.warn('⚠️ Klant was ingelogd met Cart ID email maar is nu uitgelogd');
+                console.log('🔄 Reset email en toon formulier');
+                userEmail = null;
+                document.getElementById('email-form').style.display = 'block';
+                document.getElementById('email-form').classList.add('active');
+                document.getElementById('chat-input-area').classList.remove('active');
+                return; // Stop here, email form will be shown
+            }
+            
+            // IMPORTANT: If chat is already active, don't interfere!
+            if (chatIsActive) {
+                console.log('✅ Chat is al actief, geen wijzigingen');
+                // Make absolutely sure email form is hidden
+                document.getElementById('email-form').style.display = 'none';
+                document.getElementById('email-form').classList.remove('active');
+                return; // Don't change anything, chat is working
+            }
+            
+            // ONLY skip email form if customer is logged in
+            if (customerLoggedIn) {
+                console.log('✅ Klant is ingelogd, email formulier overslaan');
+                document.getElementById('email-form').style.display = 'none';
+                document.getElementById('email-form').classList.remove('active');
+                document.getElementById('chat-input-area').classList.add('active');
+                
+                // Clear welcome message and show logged-in greeting (only if no chat history)
+                const msgs = document.getElementById('chat-messages');
+                if (msgs.children.length === 1 && msgs.children[0].textContent.includes('Welkom bij Elektramat')) {
+                    msgs.innerHTML = '';
+                    addMessage('Hallo! Waar kan ik je mee helpen?', 'bot');
+                }
+                
+                // Try to get customer email from Magento (ONLY for logged-in customers)
+                if (!userEmail) {
+                    const customerEmail = getCustomerEmail();
+                    if (customerEmail) {
+                        userEmail = customerEmail;
+                        console.log('✅ Customer email gevonden:', userEmail);
+                    } else if (magentoCartId) {
+                        // Use Cart ID as email ONLY if customer is logged in but no email found
+                        userEmail = magentoCartId + '@cartid.nl';
+                        console.log('ℹ️ Ingelogde klant zonder email, gebruik Cart ID als email:', userEmail);
+                    } else {
+                        // No email and no cart ID for logged-in customer, leave empty
+                        userEmail = '';
+                        console.log('⚠️ Ingelogde klant zonder email en zonder Cart ID, veld blijft leeg');
+                    }
+                }
+            } else {
+                // Customer is NOT logged in
+                console.log('ℹ️ Klant is niet ingelogd');
+                
+                // Make sure email form is visible if no email is set
+                if (!userEmail) {
+                    console.log('📧 Geen email ingevuld, toon formulier');
+                    document.getElementById('email-form').style.display = 'block';
+                    document.getElementById('email-form').classList.add('active');
+                    document.getElementById('chat-input-area').classList.remove('active');
+                } else {
+                    console.log('📧 Email al ingevuld:', userEmail);
+                    // User has real email from before, keep chat active
+                    document.getElementById('email-form').style.display = 'none';
+                    document.getElementById('email-form').classList.remove('active');
+                    document.getElementById('chat-input-area').classList.add('active');
+                }
+            }
+        }
+        
+        function getCustomerEmail() {
+            try {
+                // Method 1: Check Hyvä storage
+                if (typeof hyva !== 'undefined' && hyva.getBrowserStorage) {
+                    const storage = hyva.getBrowserStorage();
+                    if (storage && storage['mage-cache-storage']) {
+                        const cacheData = JSON.parse(storage['mage-cache-storage']);
+                        if (cacheData && cacheData.customer && cacheData.customer.email) {
+                            return cacheData.customer.email;
+                        }
+                    }
+                }
+                
+                // Method 2: Check localStorage
+                try {
+                    const localCache = localStorage.getItem('mage-cache-storage');
+                    if (localCache) {
+                        const cacheData = JSON.parse(localCache);
+                        if (cacheData && cacheData.customer && cacheData.customer.email) {
+                            return cacheData.customer.email;
+                        }
+                    }
+                } catch (e) {
+                    console.log('ℹ️ localStorage email check overgeslagen');
+                }
+                
+                // Method 3: Check Magento customerData
+                try {
+                    if (typeof window.customerData !== 'undefined' && window.customerData.get) {
+                        const customer = window.customerData.get('customer')();
+                        if (customer && customer.email) {
+                            return customer.email;
+                        }
+                    }
+                } catch (e) {
+                    console.log('ℹ️ Magento customerData email check overgeslagen');
+                }
+                
+                return null;
+            } catch (e) {
+                console.warn('⚠️ Error bij ophalen customer email:', e.message);
+                return null;
+            }
+        }
+
+        function attachEvents() {
+            document.getElementById('chat-toggle').onclick = toggleChat;
+            document.getElementById('close-chat').onclick = toggleChat;
+            document.getElementById('fullscreen-btn').onclick = toggleFullscreen;
+            document.getElementById('menu-btn').onclick = function(e) {
+                e.stopPropagation();
+                toggleMenu();
+            };
+            document.getElementById('menu-font-small').onclick = function() { setFontSize('small') };
+            document.getElementById('menu-font-medium').onclick = function() { setFontSize('medium') };
+            document.getElementById('menu-font-large').onclick = function() { setFontSize('large') };
+            document.getElementById('menu-reload-cart').onclick = function() {
+                document.getElementById('hamburger-menu').classList.remove('active');
+                const success = refreshMagentoCart();
+                if (success) {
+                    alert('✅ Winkelwagen wordt herlaaden...');
+                } else {
+                    if (confirm('⚠️ Automatisch herladen niet mogelijk.\n\nWil je de pagina verversen?')) {
+                        reloadCartAndPage();
+                    }
+                }
+            };
+            document.getElementById('menu-new-chat').onclick = function() {
+                document.getElementById('hamburger-menu').classList.remove('active');
+                startNewChat();
+            };
+            document.getElementById('menu-clear-chat').onclick = function() {
+                document.getElementById('hamburger-menu').classList.remove('active');
+                if (confirm('Chat geschiedenis wissen? Dit kan niet ongedaan gemaakt worden.')) {
+                    clearChat();
+                    alert('✅ Chat geschiedenis is gewist');
+                }
+            };
+            document.getElementById('email-submit').onclick = submitEmail;
+            document.getElementById('send-btn').onclick = sendMessage;
+            document.getElementById('file-input').onchange = handleFile;
+            document.getElementById('debug-toggle').onclick = function() {
+                const p = document.getElementById('debug-panel');
+                p.style.display = p.style.display === 'none' ? 'block' : 'none';
+            };
+            document.getElementById('chat-input').onkeypress = function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            };
+            
+            document.addEventListener('click', function(e) {
+                const menu = document.getElementById('hamburger-menu');
+                const menuBtn = document.getElementById('menu-btn');
+                if (menu.classList.contains('active') && !menu.contains(e.target) && e.target !== menuBtn) {
+                    menu.classList.remove('active');
+                }
+            });
+        }
+
+        function addResizeHandlers() {
+            const container = document.getElementById('chat-container');
+            const resizeHandle = document.getElementById('chat-resize-handle');
+            
+            if (!resizeHandle) {
+                console.error('Resize handle not found');
+                return;
+            }
+            
+            let isResizing = false;
+            let startX, startY, startWidth, startHeight;
+
+            resizeHandle.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = container.offsetWidth;
+                startHeight = container.offsetHeight;
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
+                const dx = startX - e.clientX;
+                const dy = startY - e.clientY;
+                const newWidth = Math.max(320, Math.min(window.innerWidth * 0.9, startWidth + dx));
+                const newHeight = Math.max(400, Math.min(window.innerHeight * 0.9, startHeight + dy));
+                container.style.width = newWidth + 'px';
+                container.style.height = newHeight + 'px';
+            });
+
+            document.addEventListener('mouseup', function() {
+                isResizing = false;
+            });
+
+            const input = document.getElementById('chat-input');
+            const inputHandle = document.getElementById('input-resize-handle');
+            
+            if (!inputHandle) {
+                console.error('Input resize handle not found');
+                return;
+            }
+            
+            let isResizingInput = false;
+            let startInputY, startInputHeight;
+
+            inputHandle.addEventListener('mousedown', function(e) {
+                isResizingInput = true;
+                startInputY = e.clientY;
+                startInputHeight = input.offsetHeight;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizingInput) return;
+                const dy = e.clientY - startInputY;
+                const newHeight = Math.max(80, Math.min(200, startInputHeight + dy));
+                input.style.height = newHeight + 'px';
+            });
+
+            document.addEventListener('mouseup', function() {
+                isResizingInput = false;
+            });
+            
+            console.log('✅ Resize handlers attached');
+        }
+
+        function toggleChat() {
+            const container = document.getElementById('chat-container');
+            const toggle = document.getElementById('chat-toggle');
+            const hadNewMessage = container.classList.contains('active') ? false : hasUnreadMessage();
+            
+            container.classList.toggle('active');
+            
+            // Wanneer chat wordt geopend
+            if (container.classList.contains('active')) {
+                // Verberg de chat button
+                toggle.style.display = 'none';
+                
+                // Verberg badge
+                updateChatBadge(false);
+                
+                // Alleen naar beneden scrollen als er GEEN nieuw bericht was
+                // Anders wil de gebruiker het nieuwe bericht zien (bovenaan recent)
+                if (!hadNewMessage) {
+                    setTimeout(function() {
+                        scrollToBottom();
+                    }, 100);
+                }
+            } else {
+                // Toon de chat button weer
+                toggle.style.display = 'flex';
+            }
+        }
+        
+        function hasUnreadMessage() {
+            // Check of er een ongelezen bericht is (badge was actief)
+            try {
+                return localStorage.getItem('elektramat_chat_badge') === 'true';
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        function scrollToBottom() {
+            const messagesContainer = document.getElementById('chat-messages');
+            if (messagesContainer) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+
+        function toggleMenu() {
+            const menu = document.getElementById('hamburger-menu');
+            menu.classList.toggle('active');
+            console.log('📋 Menu:', menu.classList.contains('active') ? 'open' : 'closed');
+        }
+
+        function toggleFullscreen() {
+            const container = document.getElementById('chat-container');
+            container.classList.toggle('fullscreen');
+            console.log('🖥️ Fullscreen:', container.classList.contains('fullscreen'));
+        }
+
+        function setFontSize(size) {
+            const container = document.getElementById('chat-container');
+            container.classList.remove('font-small', 'font-medium', 'font-large');
+            container.classList.add('font-' + size);
+            
+            document.querySelectorAll('.menu-item').forEach(function(item) {
+                item.classList.remove('active');
+            });
+            document.getElementById('menu-font-' + size).classList.add('active');
+            
+            document.getElementById('hamburger-menu').classList.remove('active');
+            
+            console.log('🔤 Lettertype:', size);
+        }
+
+        function startNewChat() {
+            if (confirm('Nieuwe chat starten? De huidige chat wordt verwijderd.')) {
+                // Clear saved chat
+                clearChat();
+                
+                // Clear pending Service Worker data
+                clearPendingData();
+                hidePendingIndicator();
+                updateChatBadge(false);
+                
+                document.getElementById('chat-messages').innerHTML = '<div class="message bot">Hallo! Welkom bij Elektramat. Hoe kan ik je helpen?</div>';
+                chatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                retryCount = 0;
+                
+                // If customer is logged in, keep chat active
+                if (customerLoggedIn) {
+                    console.log('✅ Nieuwe chat gestart (ingelogd)');
+                    document.getElementById('email-form').style.display = 'none';
+                    document.getElementById('chat-input-area').classList.add('active');
+                    document.getElementById('chat-messages').innerHTML = '';
+                    addMessage('Hallo! Waar kan ik je mee helpen?', 'bot');
+                } else {
+                    // If not logged in, show email form
+                    console.log('ℹ️ Nieuwe chat gestart (niet ingelogd)');
+                    userEmail = null;
+                    document.getElementById('email-form').classList.add('active');
+                    document.getElementById('chat-input-area').classList.remove('active');
+                }
+                
+                updateDebugPanel();
+            }
+        }
+
+        function submitEmail() {
+            const email = document.getElementById('user-email').value.trim();
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                showError('Voer een geldig e-mailadres in');
+                return;
+            }
+            userEmail = email;
+            console.log('📧 Email:', userEmail);
+            
+            // Hide email form completely
+            const emailForm = document.getElementById('email-form');
+            emailForm.classList.remove('active');
+            emailForm.style.display = 'none';
+            
+            // Show chat input
+            document.getElementById('chat-input-area').classList.add('active');
+            
+            document.getElementById('chat-messages').innerHTML = '';
+            addMessage('Hallo! Waar kan ik je mee helpen?', 'bot');
+            
+            updateDebugPanel();
+            saveChat(); // Save after email submission
+        }
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > MAX_FILE_SIZE) {
+                showError('Bestand te groot (max 10MB)');
+                e.target.value = '';
+                return;
+            }
+            currentFile = file;
+            addMessage('📎 ' + file.name, 'user');
+            e.target.value = '';
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg && !currentFile) return;
+            if (msg) addMessage(msg, 'user');
+            input.value = '';
+            await sendToWebhook(msg || 'Bestand verstuurd', currentFile);
+            currentFile = null;
+        }
+
+        async function sendToWebhook(message, file, isRetry = false) {
+            showTyping();
+            hideError();
+            
+            const startTime = Date.now();
+            
+            try {
+                // Validate: Cart ID as email should ONLY be used for logged-in customers
+                if (userEmail && userEmail.endsWith('@cartid.nl') && !customerLoggedIn) {
+                    console.error('❌ SECURITY: Cart ID email detected for non-logged-in customer!');
+                    throw new Error('Invalid configuration: Cart ID kan niet gebruikt worden als email voor niet-ingelogde klanten');
+                }
+                
+                // Build payload with Cart ID and login status
+                let payload = {
+                    message: message,
+                    chatid: chatId,
+                    email: userEmail || ''
+                };
+                
+                // Add optional fields only if they have values
+                if (debugCartIdOverride || magentoCartId) {
+                    payload.magentoCartId = debugCartIdOverride || magentoCartId;
+                }
+                
+                // Always include login status
+                payload.customerLoggedIn = customerLoggedIn;
+                
+                // Add current page information
+                payload.pageInfo = getCurrentPageInfo();
+                
+                // Log complete payload for debugging
+                console.log('📦 Complete payload:', JSON.stringify(payload, null, 2));
+                
+                if (file) {
+                    const b64 = await new Promise(function(res, rej) {
+                        const r = new FileReader();
+                        r.onload = function() { res(r.result.split(',')[1]) };
+                        r.onerror = rej;
+                        r.readAsDataURL(file);
+                    });
+                    payload.file = { name: file.name, type: file.type, size: file.size, data: b64 };
+                }
+                
+                const activeUrl = getActiveWebhookUrl();
+                showDebug('Sending' + (isRetry ? ' (Retry ' + retryCount + ')' : ''), payload);
+                console.log('🚀 POST to webhook:', activeUrl);
+                console.log('🔧 Test mode:', isTestMode() ? 'JA' : 'NEE');
+                console.log('🔧 Service Worker:', serviceWorkerReady ? 'JA' : 'NEE');
+                console.log('📤 Payload size:', JSON.stringify(payload).length, 'bytes');
+                
+                // Probeer via Service Worker te sturen (voor background processing)
+                if (serviceWorkerReady && navigator.serviceWorker.controller && !file) {
+                    // Service Worker beschikbaar - gebruik die voor background processing
+                    const requestId = generateRequestId();
+                    pendingRequestId = requestId;
+                    
+                    console.log('📤 Request via Service Worker:', requestId);
+                    
+                    navigator.serviceWorker.controller.postMessage({
+                        type: 'CHAT_REQUEST',
+                        requestId: requestId,
+                        payload: {
+                            webhookUrl: activeUrl,
+                            data: payload
+                        }
+                    });
+                    
+                    // Sla op voor als pagina herlaadt
+                    saveChat();
+                    
+                    // De response wordt afgehandeld door handleServiceWorkerMessage
+                    // We blijven typing indicator tonen tot response komt
+                    return;
+                }
+                
+                // Fallback: directe fetch (voor bestanden of als SW niet beschikbaar is)
+                console.log('📤 Direct fetch (fallback)');
+                
+                // Create abort controller for timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+                
+                const res = await fetch(activeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    mode: 'cors',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                const responseTime = Date.now() - startTime;
+                console.log('📨 Response time:', responseTime + 'ms');
+                console.log('📨 Status:', res.status, res.statusText);
+                console.log('📨 Headers:', Object.fromEntries([...res.headers.entries()]));
+                
+                if (!res.ok) {
+                    const contentType = res.headers.get('content-type');
+                    let errorText;
+                    let errorDetails = {};
+                    
+                    if (contentType && contentType.includes('application/json')) {
+                        try {
+                            const errorData = await res.json();
+                            errorText = errorData.message || errorData.error || JSON.stringify(errorData);
+                            errorDetails = errorData;
+                        } catch (e) {
+                            errorText = await res.text();
+                        }
+                    } else {
+                        errorText = await res.text();
+                    }
+                    
+                    console.error('❌ Server error:', {
+                        status: res.status,
+                        statusText: res.statusText,
+                        error: errorText,
+                        details: errorDetails
+                    });
+                    
+                    showDebug('ERROR ' + res.status, {
+                        status: res.status,
+                        statusText: res.statusText,
+                        error: errorText,
+                        headers: Object.fromEntries([...res.headers.entries()]),
+                        payload: payload
+                    });
+                    
+                    // Handle specific error codes
+                    if (res.status === 503) {
+                        if (retryCount < MAX_RETRIES && !isRetry) {
+                            retryCount++;
+                            hideTyping();
+                            showError('⏳ Server bezet, probeer opnieuw... (poging ' + retryCount + '/' + MAX_RETRIES + ')');
+                            await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+                            return sendToWebhook(message, file, true);
+                        }
+                        throw new Error('503: Server tijdelijk niet beschikbaar. Check of je n8n workflow actief is en draait.');
+                    } else if (res.status === 404) {
+                        throw new Error('404: Webhook niet gevonden. Check je webhook URL in n8n.');
+                    } else if (res.status === 500) {
+                        throw new Error('500: Server error. Check de n8n workflow logs voor details.');
+                    } else {
+                        throw new Error('HTTP ' + res.status + ': ' + (errorText.substring(0, 100) || res.statusText));
+                    }
+                }
+                
+                const data = await res.json();
+                console.log('✅ Success:', data);
+                showDebug('Success', { sent: payload, received: data, responseTime: responseTime + 'ms' });
+                hideTyping();
+                
+                // Reset retry counter on success
+                retryCount = 0;
+                
+                // Extract response text
+                let txt = extractResponseText(data);
+                
+                // Check if webhook wants to reload cart
+                const shouldReloadCart = data.reloadCart || (data.output && data.output.reloadCart);
+                
+                if (txt) {
+                    txt = formatBotMessage(txt);
+                    addMessage(txt, 'bot');
+                } else {
+                    addMessage('Bericht ontvangen!', 'bot');
+                }
+                
+                // Reload cart if requested by webhook
+                if (shouldReloadCart) {
+                    console.log('🛒 Webhook vraagt om cart reload');
+                    setTimeout(function() {
+                        const success = refreshMagentoCart();
+                        if (success) {
+                            addMessage('✅ Winkelwagen is bijgewerkt!', 'bot');
+                        } else {
+                            addMessage('ℹ️ Tip: Ververs de pagina om je winkelwagen bij te werken.', 'bot');
+                        }
+                    }, 1000);
+                }
+                
+            } catch (err) {
+                console.error('❌ Request failed:', err);
+                console.error('❌ Error details:', {
+                    name: err.name,
+                    message: err.message,
+                    stack: err.stack
+                });
+                
+                hideTyping();
+                
+                showDebug('FAILED', {
+                    error: err.message,
+                    type: err.name,
+                    stack: err.stack,
+                    payload: payload || {},
+                    retryCount: retryCount
+                });
+                
+                // Handle different error types
+                if (err.name === 'AbortError') {
+                    showError('⏱️ Request timeout na ' + (REQUEST_TIMEOUT / 1000) + ' seconden. Server reageert niet.');
+                } else if (err.message.includes('Failed to fetch')) {
+                    showError('❌ Geen verbinding mogelijk met de server.\n\nMogelijke oorzaken:\n• n8n workflow is niet actief\n• Webhook URL is verkeerd\n• CORS probleem\n• Netwerk probleem');
+                } else if (err.message.includes('503')) {
+                    showError('❌ ' + err.message + '\n\nControleer:\n1. Is je n8n workflow actief?\n2. Staat de webhook trigger aan?\n3. Zijn er errors in de workflow?');
+                } else if (err.message.includes('404')) {
+                    showError('❌ ' + err.message + '\n\nDe webhook bestaat niet meer of de URL is gewijzigd.');
+                } else {
+                    showError('❌ ' + err.message);
+                }
+                
+                // Add helpful bot message
+                addMessage('Sorry, er ging iets mis. Probeer het opnieuw of neem contact op met support als het probleem blijft bestaan.', 'bot');
+            }
+        }
+
+        function addMessage(txt, sender) {
+            const c = document.getElementById('chat-messages');
+            const wasAtBottom = c.scrollHeight - c.scrollTop <= c.clientHeight + 50;
+            
+            const d = document.createElement('div');
+            d.className = 'message ' + sender;
+            if (sender === 'bot') {
+                d.innerHTML = txt;
+            } else {
+                d.textContent = txt;
+            }
+            c.appendChild(d);
+            
+            // Auto-scroll to bottom for both user and bot messages
+            if (wasAtBottom || sender === 'bot') {
+                // Small delay to ensure DOM has updated
+                setTimeout(function() {
+                    c.scrollTop = c.scrollHeight;
+                }, 100);
+            }
+            
+            // Save chat after adding message
+            saveChat();
+        }
+
+        function formatBotMessage(text) {
+            if (!text) return '';
+            if (typeof text !== 'string') text = String(text);
+            
+            // Handle both literal \n and actual newlines
+            text = text.replace(/\\n/g, '<NEWLINE>');
+            text = text.replace(/\n/g, '<NEWLINE>');
+            
+            // Convert [text](url) to clickable links FIRST
+            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+            
+            // Convert **bold** to <strong> BEFORE bullets
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convert __underline__ to <strong>
+            text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
+            
+            // Convert bullets - IMPORTANT: handle both - and * at start after newline
+            text = text.replace(/<NEWLINE>-\s+/g, '<NEWLINE>• ');
+            text = text.replace(/<NEWLINE>\*\s+/g, '<NEWLINE>• ');
+            
+            // Also handle bullets at start of text
+            text = text.replace(/^-\s+/, '• ');
+            text = text.replace(/^\*\s+/, '• ');
+            
+            // Convert *italic* to <em> (single asterisk not at line start, not in bold)
+            text = text.replace(/(?<![\*])\*(?!\*)([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+            
+            // Convert plain URLs to clickable links
+            text = text.replace(/(?<!href="|">)(https?:\/\/[^\s<"]+)(?!<\/a>)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+            
+            // Replace placeholder with <br>
+            text = text.replace(/<NEWLINE>/g, '<br>');
+            
+            return text;
+        }
+
+        function showTyping() {
+            document.getElementById('typing-indicator').classList.add('active');
+            const c = document.getElementById('chat-messages');
+            c.scrollTop = c.scrollHeight;
+        }
+
+        function hideTyping() {
+            document.getElementById('typing-indicator').classList.remove('active');
+        }
+
+        function showError(msg) {
+            const e = document.getElementById('error-message');
+            e.textContent = msg;
+            e.classList.add('active');
+            setTimeout(function() { e.classList.remove('active') }, 12000); // Longer display time for errors
+        }
+
+        function hideError() {
+            document.getElementById('error-message').classList.remove('active');
+        }
+
+        function showDebug(status, data) {
+            const timestamp = new Date().toLocaleTimeString('nl-NL');
+            document.getElementById('debug-last-request').innerHTML = 
+                '<strong>[' + timestamp + '] ' + status + '</strong><br><pre>' + 
+                JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        function refreshMagentoCart() {
+            console.log('🔄 Winkelwagen herladen...');
+            
+            try {
+                // Method 1: Magento customerData reload (standard Magento 2)
+                if (typeof window.customerData !== 'undefined' && window.customerData.reload) {
+                    console.log('✅ Methode 1: Magento customerData reload');
+                    window.customerData.reload(['cart'], false);
+                    return true;
+                }
+                
+                // Method 2: Hyvä theme Alpine.js event dispatch
+                if (typeof window.Alpine !== 'undefined') {
+                    console.log('✅ Methode 2: Hyvä Alpine.js event');
+                    window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
+                    return true;
+                }
+                
+                // Method 3: Invalidate cart section (forces reload on next access)
+                if (typeof window.customerData !== 'undefined' && window.customerData.invalidate) {
+                    console.log('✅ Methode 3: Magento customerData invalidate');
+                    window.customerData.invalidate(['cart']);
+                    window.customerData.reload(['cart'], false);
+                    return true;
+                }
+                
+                // Method 4: Direct localStorage manipulation (Hyvä fallback)
+                try {
+                    console.log('ℹ️ Methode 4: localStorage direct update');
+                    const storage = localStorage.getItem('mage-cache-storage');
+                    if (storage) {
+                        const data = JSON.parse(storage);
+                        // Set cart as invalidated
+                        if (data.cart) {
+                            data.cart.data_id = Date.now();
+                        }
+                        localStorage.setItem('mage-cache-storage', JSON.stringify(data));
+                        
+                        // Trigger storage event for Hyvä
+                        window.dispatchEvent(new StorageEvent('storage', {
+                            key: 'mage-cache-storage',
+                            newValue: JSON.stringify(data),
+                            url: window.location.href
+                        }));
+                        
+                        return true;
+                    }
+                } catch (e) {
+                    console.warn('⚠️ localStorage update failed:', e.message);
+                }
+                
+                console.warn('⚠️ Geen werkende methode gevonden voor cart reload');
+                return false;
+                
+            } catch (e) {
+                console.error('❌ Error bij cart reload:', e.message);
+                return false;
+            }
+        }
+        
+        function reloadCartAndPage() {
+            console.log('🔄 Volledige pagina reload (met cart update)');
+            
+            // First try to reload cart
+            refreshMagentoCart();
+            
+            // Small delay then reload page
+            setTimeout(function() {
+                window.location.reload();
+            }, 500);
+        }
+
+        function getCookie(name) {
+            const v = '; ' + document.cookie;
+            const p = v.split('; ' + name + '=');
+            if (p.length === 2) return p.pop().split(';').shift();
+            return null;
+        }
+
+        function getHyvaCartId() {
+            try {
+                // Check if Hyvä theme is available
+                if (typeof hyva === 'undefined' || !hyva.getBrowserStorage) {
+                    console.log('ℹ️ Hyvä theme niet gevonden, gebruik fallback');
+                    return null;
+                }
+                
+                // Get cart ID from Hyvä browser storage
+                const storage = hyva.getBrowserStorage();
+                if (!storage || !storage['mage-cache-storage']) {
+                    console.log('ℹ️ Geen Magento cache storage gevonden');
+                    return null;
+                }
+                
+                const cacheData = JSON.parse(storage['mage-cache-storage']);
+                if (cacheData && cacheData.cart && cacheData.cart.cartId) {
+                    console.log('✅ Hyvä Cart ID gevonden:', cacheData.cart.cartId);
+                    return cacheData.cart.cartId;
+                }
+                
+                return null;
+            } catch (e) {
+                console.warn('⚠️ Error bij ophalen Hyvä cart ID:', e.message);
+                return null;
+            }
+        }
+
+        function isCustomerLoggedIn() {
+            try {
+                // Method 1: Check Hyvä storage
+                if (typeof hyva !== 'undefined' && hyva.getBrowserStorage) {
+                    const storage = hyva.getBrowserStorage();
+                    if (storage && storage['mage-cache-storage']) {
+                        const cacheData = JSON.parse(storage['mage-cache-storage']);
+                        
+                        // Check if customer exists and has data
+                        if (cacheData && cacheData.customer) {
+                            // Check firstname/lastname (logged in customers have this)
+                            if (cacheData.customer.firstname || cacheData.customer.lastname) {
+                                console.log('✅ Klant is ingelogd (Hyvä customer naam gevonden)');
+                                return true;
+                            }
+                        }
+                        
+                        // Check customer_logged_in flag
+                        if (cacheData && cacheData.customer_logged_in === true) {
+                            console.log('✅ Klant is ingelogd (customer_logged_in flag)');
+                            return true;
+                        }
+                    }
+                }
+                
+                // Method 2: Check localStorage directly
+                try {
+                    const localCache = localStorage.getItem('mage-cache-storage');
+                    if (localCache) {
+                        const cacheData = JSON.parse(localCache);
+                        if (cacheData && cacheData.customer) {
+                            if (cacheData.customer.firstname) {
+                                console.log('✅ Klant is ingelogd (localStorage)');
+                                return true;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log('ℹ️ localStorage check overgeslagen');
+                }
+                
+                // Method 3: Check cookies
+                const loggedInCookie = getCookie('customer_logged_in');
+                if (loggedInCookie === '1' || loggedInCookie === 'true') {
+                    console.log('✅ Klant is ingelogd (cookie)');
+                    return true;
+                }
+                
+                // Method 4: Check Magento customer sections
+                try {
+                    if (typeof window.customerData !== 'undefined' && window.customerData.get) {
+                        const customer = window.customerData.get('customer')();
+                        if (customer && customer.firstname) {
+                            console.log('✅ Klant is ingelogd (Magento customerData)');
+                            return true;
+                        }
+                    }
+                } catch (e) {
+                    console.log('ℹ️ Magento customerData check overgeslagen');
+                }
+                
+                // Method 5: Check for "Ingelogd als" in page (last resort)
+                try {
+                    const pageText = document.body.innerText;
+                    if (pageText.includes('Ingelogd als') || pageText.includes('Uitloggen')) {
+                        console.log('✅ Klant is ingelogd (pagina tekst)');
+                        return true;
+                    }
+                } catch (e) {
+                    console.log('ℹ️ Pagina tekst check overgeslagen');
+                }
+                
+                console.log('❌ Klant is niet ingelogd');
+                return false;
+            } catch (e) {
+                console.warn('⚠️ Error bij checken login status:', e.message);
+                return false;
+            }
+        }
+
+        function getCurrentPageInfo() {
+            // Verzamel informatie over de huidige pagina
+            const pageInfo = {
+                url: window.location.href,
+                path: window.location.pathname,
+                title: document.title,
+                pageType: detectPageType(),
+                productInfo: getProductInfo(),
+                categoryInfo: getCategoryInfo(),
+                searchQuery: getSearchQuery()
+            };
+            
+            console.log('📄 Pagina info:', pageInfo);
+            return pageInfo;
+        }
+        
+        function detectPageType() {
+            const path = window.location.pathname.toLowerCase();
+            const url = window.location.href.toLowerCase();
+            
+            // Magento/Hyvä specifieke pagina detectie
+            if (path === '/' || path === '') return 'homepage';
+            if (path.includes('/checkout/cart')) return 'winkelwagen';
+            if (path.includes('/checkout')) return 'checkout';
+            if (path.includes('/customer/account/login')) return 'login';
+            if (path.includes('/customer/account/create')) return 'registratie';
+            if (path.includes('/customer/account')) return 'account';
+            if (path.includes('/catalogsearch/result')) return 'zoekresultaten';
+            if (path.includes('/wishlist')) return 'verlanglijst';
+            if (path.includes('/sales/order/history')) return 'bestellingen';
+            if (path.includes('/contact')) return 'contact';
+            
+            // Check voor product pagina (Magento heeft vaak .html extensie)
+            if (document.querySelector('.product-info-main') || 
+                document.querySelector('[data-product-id]') ||
+                document.querySelector('.product-view') ||
+                path.match(/\.html$/) && document.querySelector('.price')) {
+                return 'productpagina';
+            }
+            
+            // Check voor categorie pagina
+            if (document.querySelector('.products-grid') || 
+                document.querySelector('.category-products') ||
+                document.querySelector('.toolbar-products')) {
+                return 'categorie';
+            }
+            
+            return 'overig';
+        }
+        
+        function getProductInfo() {
+            // Probeer product informatie te halen van de pagina
+            try {
+                const productInfo = {};
+                
+                // Product naam
+                const productName = document.querySelector('.page-title span') ||
+                                   document.querySelector('.product-info-main h1') ||
+                                   document.querySelector('[data-ui-id="page-title-wrapper"]');
+                if (productName) {
+                    productInfo.name = productName.textContent.trim();
+                }
+                
+                // Product SKU
+                const skuElement = document.querySelector('.product.attribute.sku .value') ||
+                                  document.querySelector('[itemprop="sku"]');
+                if (skuElement) {
+                    productInfo.sku = skuElement.textContent.trim();
+                }
+                
+                // Product prijs
+                const priceElement = document.querySelector('[data-price-type="finalPrice"] .price') ||
+                                    document.querySelector('.price-final_price .price') ||
+                                    document.querySelector('.product-info-price .price');
+                if (priceElement) {
+                    productInfo.price = priceElement.textContent.trim();
+                }
+                
+                // Product ID (Magento)
+                const productIdElement = document.querySelector('[data-product-id]') ||
+                                        document.querySelector('input[name="product"]');
+                if (productIdElement) {
+                    productInfo.id = productIdElement.getAttribute('data-product-id') || 
+                                    productIdElement.value;
+                }
+                
+                // Check voorraad status
+                const stockElement = document.querySelector('.stock.available') ||
+                                    document.querySelector('.stock span');
+                if (stockElement) {
+                    productInfo.stock = stockElement.textContent.trim();
+                }
+                
+                return Object.keys(productInfo).length > 0 ? productInfo : null;
+            } catch (e) {
+                console.warn('⚠️ Kon product info niet ophalen:', e.message);
+                return null;
+            }
+        }
+        
+        function getCategoryInfo() {
+            // Probeer categorie informatie te halen
+            try {
+                const categoryInfo = {};
+                
+                // Categorie naam
+                const categoryName = document.querySelector('.page-title span') ||
+                                    document.querySelector('.category-title h1');
+                if (categoryName && detectPageType() === 'categorie') {
+                    categoryInfo.name = categoryName.textContent.trim();
+                }
+                
+                // Breadcrumbs voor categorie pad
+                const breadcrumbs = document.querySelectorAll('.breadcrumbs li a, .breadcrumb a');
+                if (breadcrumbs.length > 0) {
+                    categoryInfo.breadcrumbs = Array.from(breadcrumbs).map(bc => bc.textContent.trim());
+                }
+                
+                // Aantal producten op de pagina
+                const productCount = document.querySelectorAll('.product-item, .products-grid .item').length;
+                if (productCount > 0) {
+                    categoryInfo.productCount = productCount;
+                }
+                
+                return Object.keys(categoryInfo).length > 0 ? categoryInfo : null;
+            } catch (e) {
+                console.warn('⚠️ Kon categorie info niet ophalen:', e.message);
+                return null;
+            }
+        }
+        
+        function getSearchQuery() {
+            // Haal zoekterm op als de gebruiker op een zoekresultaten pagina is
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const searchQuery = urlParams.get('q');
+                if (searchQuery) {
+                    return searchQuery;
+                }
+                
+                // Fallback: check zoekbalk
+                const searchInput = document.querySelector('#search, input[name="q"]');
+                if (searchInput && searchInput.value) {
+                    return searchInput.value.trim();
+                }
+                
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function updateDebugPanel() {
+            document.getElementById('debug-chatid').textContent = chatId || '-';
+            
+            // Show email with indicator if it's from Cart ID
+            const emailText = userEmail || '-';
+            const emailIndicator = userEmail && userEmail.endsWith('@cartid.nl') ? ' (van Cart ID)' : '';
+            document.getElementById('debug-email').textContent = emailText + emailIndicator;
+            
+            // Show logged in status with color
+            const loggedInEl = document.getElementById('debug-loggedin');
+            loggedInEl.textContent = customerLoggedIn ? 'JA ✓' : 'NEE';
+            loggedInEl.style.color = customerLoggedIn ? '#70CC0A' : '#ff6b6b';
+            
+            // Show cart ID with source indicator
+            const cartIdText = debugCartIdOverride || magentoCartId || '-';
+            const cartSource = debugCartIdOverride ? '(override)' : magentoCartId ? (getHyvaCartId() ? '(Hyvä)' : '(cookie)') : '';
+            document.getElementById('debug-cartid').textContent = cartIdText + ' ' + cartSource;
+            
+            // Show saved chat status
+            const savedEl = document.getElementById('debug-saved');
+            const hasSavedChat = localStorage.getItem('elektramat_chat') !== null;
+            savedEl.textContent = hasSavedChat ? 'JA ✓' : 'NEE';
+            savedEl.style.color = hasSavedChat ? '#70CC0A' : '#ff6b6b';
+            
+            // Show current page type
+            const pageTypeEl = document.getElementById('debug-pagetype');
+            const pageInfo = getCurrentPageInfo();
+            let pageDisplay = pageInfo.pageType;
+            if (pageInfo.productInfo && pageInfo.productInfo.name) {
+                pageDisplay += ': ' + pageInfo.productInfo.name.substring(0, 20) + (pageInfo.productInfo.name.length > 20 ? '...' : '');
+            }
+            pageTypeEl.textContent = pageDisplay;
+            
+            // Show webhook status
+            const webhookEl = document.getElementById('debug-webhook');
+            if (isTestMode()) {
+                // Toon verkorte URL voor leesbaarheid
+                const shortUrl = webhookUrlOverride.length > 30 
+                    ? webhookUrlOverride.substring(0, 30) + '...' 
+                    : webhookUrlOverride;
+                webhookEl.textContent = 'TEST: ' + shortUrl;
+                webhookEl.style.color = '#ff9800';
+                webhookEl.title = webhookUrlOverride;
+            } else {
+                webhookEl.textContent = 'productie ✓';
+                webhookEl.style.color = '#70CC0A';
+                webhookEl.title = WEBHOOK_URL_PRODUCTION;
+            }
+        }
+
+        function overrideCartId() {
+            debugCartIdOverride = document.getElementById('debug-cart-override').value.trim();
+            updateDebugPanel();
+            alert(debugCartIdOverride ? '✅ Cart ID ingesteld: ' + debugCartIdOverride : 'Cart ID gewist');
+        }
+        
+        function overrideWebhookUrl() {
+            const newUrl = document.getElementById('debug-webhook-override').value.trim();
+            if (!newUrl) {
+                alert('⚠️ Voer een webhook URL in');
+                return;
+            }
+            
+            // Basic URL validation
+            if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
+                alert('⚠️ URL moet beginnen met http:// of https://');
+                return;
+            }
+            
+            webhookUrlOverride = newUrl;
+            localStorage.setItem('elektramat_webhook_override', newUrl);
+            
+            updateDebugPanel();
+            updateTestModeBanner();
+            
+            console.log('🔧 Webhook override ingesteld:', newUrl);
+            alert('✅ Webhook URL ingesteld!\n\nTest mode is nu ACTIEF.\nAlle berichten gaan naar:\n' + newUrl);
+        }
+        
+        function clearWebhookOverride() {
+            webhookUrlOverride = null;
+            localStorage.removeItem('elektramat_webhook_override');
+            document.getElementById('debug-webhook-override').value = '';
+            
+            updateDebugPanel();
+            updateTestModeBanner();
+            
+            console.log('🔧 Webhook override verwijderd, terug naar productie');
+            alert('✅ Terug naar productie!\n\nBerichten gaan nu naar:\n' + WEBHOOK_URL_PRODUCTION);
+        }
+        
+        function updateTestModeBanner() {
+            const banner = document.getElementById('test-mode-banner');
+            const menuStatus = document.getElementById('menu-connection-status');
+            
+            if (isTestMode()) {
+                banner.style.display = 'block';
+                banner.title = 'Verbonden met: ' + webhookUrlOverride;
+                
+                if (menuStatus) {
+                    menuStatus.textContent = '⚠️ TEST MODE';
+                    menuStatus.style.color = '#ff9800';
+                }
+                
+                // Also update debug panel input with current override
+                const overrideInput = document.getElementById('debug-webhook-override');
+                if (overrideInput && !overrideInput.value) {
+                    overrideInput.value = webhookUrlOverride;
+                }
+            } else {
+                banner.style.display = 'none';
+                
+                if (menuStatus) {
+                    menuStatus.textContent = 'Verbonden met productie';
+                    menuStatus.style.color = '#70CC0A';
+                }
+            }
+        }
+
+        function refreshCartId() {
+            // Re-fetch cart ID and login status
+            const oldCartId = magentoCartId;
+            const oldLoggedIn = customerLoggedIn;
+            
+            console.log('🔄 Refreshing cart and login data...');
+            loadCustomerData();
+            
+            updateDebugPanel();
+            
+            const changes = [];
+            if (oldCartId !== magentoCartId) {
+                changes.push('Cart: ' + (oldCartId || '(leeg)') + ' → ' + (magentoCartId || '(leeg)'));
+            }
+            if (oldLoggedIn !== customerLoggedIn) {
+                changes.push('Login: ' + (oldLoggedIn ? 'Ja' : 'Nee') + ' → ' + (customerLoggedIn ? 'Ja' : 'Nee'));
+            }
+            
+            if (changes.length > 0) {
+                alert('🔄 Data bijgewerkt!\n\n' + changes.join('\n'));
+                console.log('🔄 Data refreshed:', { cartId: magentoCartId, loggedIn: customerLoggedIn });
+            } else {
+                alert('ℹ️ Geen wijzigingen gevonden');
+            }
+        }
+    </script>
+</body>
+</html>
